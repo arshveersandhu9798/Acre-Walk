@@ -1,10 +1,14 @@
 import { firebaseConfig } from "./firebase-config.js";
 
 const STORAGE_KEY = "fieldnote-surveys-v1";
+const UNIT_SYSTEM_KEY = "fieldnote-unit-system-v1";
 const MAX_GPS_ACCURACY_METERS = 35;
 const MIN_POINT_SPACING_METERS = 1.5;
 const ACRE_IN_SQUARE_METERS = 4046.8564224;
 const HECTARE_IN_SQUARE_METERS = 10000;
+const SQUARE_FEET_PER_SQUARE_METER = 10.7639104167;
+const FEET_PER_METER = 3.280839895;
+const METERS_PER_MILE = 1609.344;
 
 const $ = (selector) => document.querySelector(selector);
 const elements = {
@@ -20,6 +24,7 @@ const elements = {
   mapCaption: $("#map-caption"),
   mapHelp: $(".map-help"),
   nameInput: $("#land-name"),
+  unitSystem: $("#unit-system"),
   start: $("#start-button"),
   pause: $("#pause-button"),
   finish: $("#finish-button"),
@@ -44,6 +49,7 @@ let currentUser = null;
 let firebaseServices = null;
 let toastTimer;
 let surveys = readLocalSurveys();
+let unitSystem = "metric";
 
 function showToast(message, isError = false) {
   elements.toast.textContent = message;
@@ -72,6 +78,31 @@ function persistLocalSurveys() {
     console.error("Could not save surveys on this device:", error);
     showToast("Could not save on this device. Check available browser storage.", true);
   }
+}
+
+function initializeUnitSystem() {
+  try {
+    const savedUnitSystem = localStorage.getItem(UNIT_SYSTEM_KEY);
+    if (savedUnitSystem === "metric" || savedUnitSystem === "imperial") unitSystem = savedUnitSystem;
+  } catch (error) {
+    console.error("Could not read the measurement unit preference:", error);
+    showToast("Could not read the saved unit preference. Using metric units.", true);
+  }
+  elements.unitSystem.value = unitSystem;
+  elements.unitSystem.addEventListener("change", () => {
+    unitSystem = elements.unitSystem.value;
+    try {
+      localStorage.setItem(UNIT_SYSTEM_KEY, unitSystem);
+    } catch (error) {
+      console.error("Could not save the measurement unit preference:", error);
+      showToast("Could not save your unit preference on this device.", true);
+    }
+    if (currentAccuracy !== null && currentAccuracy > MAX_GPS_ACCURACY_METERS) {
+      elements.gpsMessage.textContent = getGpsAccuracyMessage(currentAccuracy);
+    }
+    renderMetrics();
+    updateHistory();
+  });
 }
 
 function initMap() {
@@ -128,29 +159,73 @@ function getAreaSquareMeters(path) {
   return Math.abs(twiceArea) / 2;
 }
 
-function formatDistance(meters) {
-  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} <small>km</small>`;
-  return `${Math.round(meters)} <small>m</small>`;
+function getAreaMeasurement(squareMeters) {
+  if (unitSystem === "imperial") {
+    if (squareMeters >= ACRE_IN_SQUARE_METERS) {
+      return {
+        value: (squareMeters / ACRE_IN_SQUARE_METERS).toFixed(2),
+        unit: "acres",
+        secondary: `${Math.round(squareMeters * SQUARE_FEET_PER_SQUARE_METER).toLocaleString()} ft²`,
+      };
+    }
+    return {
+      value: Math.round(squareMeters * SQUARE_FEET_PER_SQUARE_METER).toLocaleString(),
+      unit: "ft²",
+      secondary: `${(squareMeters / ACRE_IN_SQUARE_METERS).toFixed(4)} acres`,
+    };
+  }
+  if (squareMeters >= HECTARE_IN_SQUARE_METERS) {
+    return {
+      value: (squareMeters / HECTARE_IN_SQUARE_METERS).toFixed(2),
+      unit: "hectares",
+      secondary: `${Math.round(squareMeters).toLocaleString()} m²`,
+    };
+  }
+  return {
+    value: Math.round(squareMeters).toLocaleString(),
+    unit: "m²",
+    secondary: `${(squareMeters / HECTARE_IN_SQUARE_METERS).toFixed(4)} hectares`,
+  };
 }
 
-function formatArea(squareMeters) {
-  if (squareMeters < 1) return "0";
-  if (squareMeters >= HECTARE_IN_SQUARE_METERS) return (squareMeters / HECTARE_IN_SQUARE_METERS).toFixed(2);
-  return (squareMeters / ACRE_IN_SQUARE_METERS).toFixed(2);
+function getAccuracyMeasurement(meters) {
+  return unitSystem === "imperial"
+    ? { value: Math.round(meters * FEET_PER_METER), unit: "ft" }
+    : { value: Math.round(meters), unit: "m" };
+}
+
+function formatAccuracy(meters) {
+  const measurement = getAccuracyMeasurement(meters);
+  return `${measurement.value} ${measurement.unit}`;
+}
+
+function getGpsAccuracyMessage(meters) {
+  return `GPS accuracy is ±${formatAccuracy(meters)}. Waiting for a clearer signal (need ±${formatAccuracy(MAX_GPS_ACCURACY_METERS)} or better).`;
+}
+
+function formatDistance(meters) {
+  if (unitSystem === "imperial") {
+    if (meters >= METERS_PER_MILE) return `${(meters / METERS_PER_MILE).toFixed(2)} <small>mi</small>`;
+    return `${Math.round(meters * FEET_PER_METER)} <small>ft</small>`;
+  }
+  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} <small>km</small>`;
+  return `${Math.round(meters)} <small>m</small>`;
 }
 
 function renderMetrics() {
   const area = getAreaSquareMeters(points);
   const distance = getPathDistance(points, trackingState === "finished");
-  elements.area.textContent = points.length < 3 ? "—" : formatArea(area);
-  elements.areaUnit.textContent = area >= HECTARE_IN_SQUARE_METERS ? "hectares" : "acres";
+  const areaMeasurement = getAreaMeasurement(area);
+  const accuracyMeasurement = getAccuracyMeasurement(currentAccuracy || 0);
+  elements.area.textContent = points.length < 3 ? "—" : areaMeasurement.value;
+  elements.areaUnit.textContent = areaMeasurement.unit;
   elements.areaSecondary.textContent = points.length < 3
     ? "Walk at least 3 boundary points"
-    : `${(area / ACRE_IN_SQUARE_METERS).toFixed(2)} acres · ${(area / HECTARE_IN_SQUARE_METERS).toFixed(2)} hectares`;
+    : areaMeasurement.secondary;
   elements.distance.innerHTML = formatDistance(distance);
   elements.accuracy.innerHTML = currentAccuracy === null
-    ? "— <small>m</small>"
-    : `${Math.round(currentAccuracy)} <small>m</small>`;
+    ? `— <small>${accuracyMeasurement.unit}</small>`
+    : `${accuracyMeasurement.value} <small>${accuracyMeasurement.unit}</small>`;
   elements.pointCount.textContent = `${points.length} ${points.length === 1 ? "point" : "points"}`;
   elements.finish.disabled = trackingState === "idle" || trackingState === "finished" || points.length < 3;
 }
@@ -240,7 +315,7 @@ function acceptPosition(position) {
   currentAccuracy = accuracy;
   elements.gpsMessage.textContent = "";
   if (accuracy > MAX_GPS_ACCURACY_METERS) {
-    elements.gpsMessage.textContent = `GPS accuracy is ±${Math.round(accuracy)} m. Waiting for a clearer signal (need ±${MAX_GPS_ACCURACY_METERS} m or better).`;
+    elements.gpsMessage.textContent = getGpsAccuracyMessage(accuracy);
     renderMetrics();
     return;
   }
@@ -306,7 +381,8 @@ function updateHistory() {
     const entry = document.createElement("button");
     entry.type = "button";
     entry.className = "history-entry";
-    entry.setAttribute("aria-label", `View ${survey.name}, ${formatSurveyArea(survey.area)} acres`);
+    const formattedArea = formatSurveyArea(survey.area);
+    entry.setAttribute("aria-label", `View ${survey.name}, ${formattedArea}`);
     const info = document.createElement("span");
     info.className = "history-info";
     const name = document.createElement("span");
@@ -317,7 +393,7 @@ function updateHistory() {
     date.textContent = new Date(survey.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
     const area = document.createElement("span");
     area.className = "history-area";
-    area.textContent = `${formatSurveyArea(survey.area)} ac`;
+    area.textContent = formattedArea;
     info.append(name, date);
     entry.append(info, area);
     entry.addEventListener("click", () => showSurvey(survey));
@@ -326,7 +402,8 @@ function updateHistory() {
 }
 
 function formatSurveyArea(squareMeters) {
-  return (squareMeters / ACRE_IN_SQUARE_METERS).toFixed(2);
+  const measurement = getAreaMeasurement(squareMeters);
+  return `${measurement.value} ${measurement.unit}`;
 }
 
 function showSurvey(survey) {
@@ -529,6 +606,7 @@ elements.locate.addEventListener("click", () => {
 });
 window.addEventListener("beforeunload", stopWatch);
 
+initializeUnitSystem();
 initMap();
 renderMetrics();
 updateHistory();

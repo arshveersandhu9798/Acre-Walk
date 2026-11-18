@@ -39,5 +39,6 @@ Import the GitHub repository into Vercel and deploy with the **Other** framework
 
 - GPS tracking needs permission, a location-capable device, and a secure context (HTTPS in production).
 - Keep the page open while recording. GPS accuracy varies with the device, terrain, and satellite reception; fixes worse than ±35 m are skipped.
+- Choose Metric or Imperial measurements in the survey panel; the preference is saved in the current browser.
 - Area is an approximate calculation from the recorded GPS polygon. It is not a legal or cadastral survey. Consult a licensed surveyor for official property boundaries.
 - Map tiles are provided by OpenStreetMap; an internet connection is needed to load them.
