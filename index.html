@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f6f1" />
+    <meta name="description" content="Measure land boundaries as you walk them. Track GPS surveys, calculate area, and save your results." />
+    <title>Fieldnote — Land measurement, made clear</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Fieldnote home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M7 8.5 15.6 5l9.1 4v13.2l-8.8 4.3L7 22.8V8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m7.4 8.7 8.5 4 8.3-3.7M15.9 12.8v13.1" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="16" cy="12.5" r="2.1" fill="currentColor"/></svg>
+          </span>
+          <span class="brand-name">fieldnote<span class="brand-period">.</span></span>
+        </a>
+        <div class="topbar-right">
+          <span id="sync-label" class="sync-label"><span class="sync-dot"></span> Saved on this device</span>
+          <button id="auth-button" class="google-button" type="button">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.15a11 11 0 0 0 0 9.9l3.69-2.84Z"/><path fill="#EA4335" d="M12 5.36c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.01 14.97 1 12 1a11 11 0 0 0-9.85 6.05l3.69 2.84C6.71 7.29 9.14 5.36 12 5.36Z"/></svg>
+            <span id="auth-button-label">Continue with Google</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="intro">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span> LAND SURVEY, SIMPLIFIED</div>
+            <h1>Know your land.<br /><span>Down to the boundary.</span></h1>
+            <p class="intro-copy">Walk the perimeter. We’ll take care of the measurements.</p>
+          </div>
+          <div class="intro-note"><span class="note-icon">✳</span><span>For field estimates. Verify legal boundaries with a licensed surveyor.</span></div>
+        </section>
+
+        <section class="measure-grid" aria-label="Land survey workspace">
+          <aside class="control-panel">
+            <div class="panel-heading">
+              <div><span class="section-kicker">YOUR SURVEY</span><h2>Boundary walk</h2></div>
+              <button id="locate-button" class="icon-button" type="button" aria-label="Center map on current location" title="Find my location">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+
+            <label class="field-label" for="land-name">LAND / PROPERTY NAME</label>
+            <input id="land-name" class="name-input" type="text" maxlength="70" placeholder="e.g. North field, Plot 12" autocomplete="off" />
+
+            <div class="metrics-card">
+              <div class="metric-main">
+                <div class="metric-label">ESTIMATED AREA <span class="live-badge"><span></span> LIVE</span></div>
+                <div class="area-value"><span id="area-value">—</span><span id="area-unit" class="area-unit">acres</span></div>
+                <div id="area-secondary" class="metric-secondary">Walk at least 3 boundary points</div>
+              </div>
+              <div class="metric-divider"></div>
+              <div class="metric-row">
+                <div class="metric-item"><span class="metric-label">PERIMETER WALKED</span><strong id="distance-value">0 <small>m</small></strong></div>
+                <div class="metric-item"><span class="metric-label">GPS ACCURACY</span><strong id="accuracy-value">— <small>m</small></strong></div>
+              </div>
+            </div>
+
+            <div class="tracking-status">
+              <span id="status-indicator" class="status-indicator"></span>
+              <span id="status-text">Ready when you are</span>
+              <span id="point-count" class="point-count">0 points</span>
+            </div>
+            <div id="gps-message" class="gps-message" role="status" aria-live="polite"></div>
+
+            <div class="control-actions">
+              <button id="start-button" class="primary-button" type="button">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.8a1 1 0 0 1 1.5-.86l9.1 5.2a1 1 0 0 1 0 1.72l-9.1 5.2A1 1 0 0 1 8 16.2V5.8Z"/></svg>
+                <span>Start walking</span>
+              </button>
+              <button id="pause-button" class="secondary-button" type="button" hidden>
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>
+                <span>Pause</span>
+              </button>
+              <button id="finish-button" class="finish-button" type="button" disabled>
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                Finish &amp; save
+              </button>
+            </div>
+            <p class="gps-hint"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 17s6-5.05 6-10a6 6 0 1 0-12 0c0 4.95 6 10 6 10Z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="7" r="2" stroke="currentColor" stroke-width="1.5"/></svg> Keep this page open while you walk. GPS works best outdoors.</p>
+
+            <div class="history-section">
+              <div class="history-heading"><div><span class="section-kicker">YOUR RECORDS</span><h3>Recent surveys</h3></div><div class="history-tools"><button id="export-history" class="export-history" type="button" hidden>Export JSON</button><span id="history-count" class="history-count">0</span></div></div>
+              <div id="history-list" class="history-list"></div>
+              <button id="clear-history" class="clear-history" type="button" hidden>Clear saved surveys</button>
+            </div>
+          </aside>
+
+          <div class="map-panel">
+            <div id="map" role="application" aria-label="Map showing your land boundary"></div>
+            <div class="map-top-overlay"><span class="map-live-dot"></span><span id="map-caption">Map ready</span></div>
+            <div class="map-legend"><span class="legend-line"></span><span>Your boundary</span><span class="legend-separator"></span><span class="legend-dot"></span><span>GPS point</span></div>
+            <div class="map-help"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.4"/><path d="M10 9v4m0-6h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Your track appears here as you walk</div>
+            <div class="map-attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors</div>
+          </div>
+        </section>
+
+        <footer class="page-footer"><span>FIELDNOTE <span class="footer-dot">/</span> MEASURE WITH CONFIDENCE</span><span>GPS estimates are not a substitute for a legal land survey.</span></footer>
+      </main>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
